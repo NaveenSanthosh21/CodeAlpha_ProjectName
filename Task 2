@@ -1,1 +1,212 @@
+# Security Code Review Report
+
+## 1. Overview
+
+**Programming Language:** Python
+
+**Application Type:** Flask Web Application
+
+**Objective:** Identify security vulnerabilities through manual code review and static analysis, then recommend remediation steps.
+
+---
+
+## 2. Sample Vulnerable Code
+
+```python
+from flask import Flask, request
+import sqlite3
+
+app = Flask(__name__)
+
+@app.route('/login')
+def login():
+    username = request.args.get('username')
+    password = request.args.get('password')
+
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+    cursor.execute(query)
+
+    result = cursor.fetchone()
+
+    if result:
+        return "Login Successful"
+    return "Invalid Credentials"
+
+@app.route('/profile')
+def profile():
+    return f"Welcome {request.args.get('name')}"
+```
+
+---
+
+## 3. Review Methodology
+
+### Manual Inspection
+
+* Reviewed authentication logic.
+* Examined database interactions.
+* Checked user input handling.
+* Evaluated output generation.
+
+### Static Analysis Tools
+
+* Bandit
+* pylint
+* SonarQube (optional)
+
+Command:
+
+```bash
+bandit -r application/
+```
+
+---
+
+## 4. Findings
+
+### Finding 1: SQL Injection
+
+**Severity:** High
+
+**Location:**
+
+```python
+query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+```
+
+**Description:**
+
+User input is directly concatenated into an SQL query.
+
+**Attack Example:**
+
+```text
+username=admin' --
+password=anything
+```
+
+This may bypass authentication.
+
+**Recommendation:**
+
+Use parameterized queries.
+
+**Remediation:**
+
+```python
+cursor.execute(
+    "SELECT * FROM users WHERE username=? AND password=?",
+    (username, password)
+)
+```
+
+---
+
+### Finding 2: Plaintext Password Handling
+
+**Severity:** High
+
+**Description:**
+
+Passwords appear to be stored and compared in plaintext.
+
+**Risk:**
+
+Compromise of database exposes all user passwords.
+
+**Recommendation:**
+
+Use password hashing.
+
+Example:
+
+```python
+from werkzeug.security import check_password_hash
+```
+
+Store passwords using:
+
+```python
+generate_password_hash(password)
+```
+
+---
+
+### Finding 3: Cross-Site Scripting (XSS)
+
+**Severity:** Medium
+
+**Location:**
+
+```python
+return f"Welcome {request.args.get('name')}"
+```
+
+**Description:**
+
+User-controlled data is returned directly.
+
+**Attack Example:**
+
+```html
+<script>alert('XSS')</script>
+```
+
+**Recommendation:**
+
+Escape output or use Flask templates with automatic escaping.
+
+---
+
+### Finding 4: Sensitive Data via GET Parameters
+
+**Severity:** Medium
+
+**Description:**
+
+Credentials are transmitted using URL parameters.
+
+**Risk:**
+
+Passwords may appear in browser history, logs, and proxies.
+
+**Recommendation:**
+
+Use POST requests for authentication.
+
+---
+
+## 5. Secure Coding Best Practices
+
+1. Validate all user inputs.
+2. Use parameterized database queries.
+3. Hash passwords using bcrypt or PBKDF2.
+4. Implement output encoding.
+5. Use HTTPS for all sensitive communications.
+6. Apply least-privilege database permissions.
+7. Perform regular dependency updates.
+8. Enable security logging and monitoring.
+9. Implement rate limiting on authentication endpoints.
+10. Conduct periodic code reviews and security testing.
+
+---
+
+## 6. Recommended Tools
+
+| Tool      | Purpose                          |
+| --------- | -------------------------------- |
+| Bandit    | Python security analysis         |
+| SonarQube | Code quality and security review |
+| pylint    | Static code analysis             |
+| OWASP ZAP | Web application testing          |
+| Semgrep   | Security rule scanning           |
+
+---
+
+## 7. Conclusion
+
+The review identified several vulnerabilities including SQL Injection, insecure password handling, Cross-Site Scripting, and unsafe credential transmission. Implementing parameterized queries, password hashing, secure output handling, and proper authentication practices will significantly improve the application's security posture.
 
